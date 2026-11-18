@@ -300,16 +300,6 @@ kaart.on('click', function (e) {
 // EINDE DEEL B
 
 // ---------- Kerncijfers bovenaan ----------
-window.addEventListener('error', function (e) {
-  let balk = document.getElementById('foutbalk');
-  if (!balk) {
-    balk = document.createElement('div');
-    balk.id = 'foutbalk';
-    balk.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:99999;background:#b00020;color:#fff;font:12px sans-serif;padding:6px 10px';
-    document.body.appendChild(balk);
-  }
-  balk.textContent = 'Fout in de pagina: ' + e.message + ' (regel ' + e.lineno + ')';
-});
 const kern = document.getElementById('kern');
 
 function kaartje(waarde, label, sub) {
@@ -443,7 +433,7 @@ const zoekBox = L.control({position: 'topleft'});
 zoekBox.onAdd = function () {
   const div = L.DomUtil.create('div', 'zoek');
   div.innerHTML = '<input id="zoekveld" type="search" ' +
-    'placeholder="Zoek adres, boomsoort, jaar of boom-ID..." autocomplete="off">' +
+    'placeholder="Adres, boomsoort, jaar of boom-ID" autocomplete="off">' +
     '<div id="filterchip"></div><div id="zoeklijst"></div>';
   L.DomEvent.disableClickPropagation(div);
   L.DomEvent.disableScrollPropagation(div);
@@ -517,8 +507,19 @@ function zoekLokaal(tekst) {
   const items = [];
   const klein = tekst.toLowerCase();
 
-  if (/^\d{5,8}$/.test(tekst)) {
-    const id = parseInt(tekst, 10);
+  const idTekst = tekst.replace(/^(boom-id|boom|id)\s*[:#]?\s*/i, '').replace(/[.\s]/g, '');
+  if (/^\d{5,8}$/.test(idTekst)) {
+    const bestaat = function (x) {
+      for (let k = 0; k < N; k++) { if (ID[k] === x) return true; }
+      return false;
+    };
+    if (!bestaat(parseInt(idTekst, 10))) {
+      items.push({groep: 'Boom-ID', tekst: 'Boom-ID ' + idTekst + ' staat niet in deze dataset',
+                  actie: function () {}});
+    }
+  }
+  if (/^\d{5,8}$/.test(idTekst)) {
+    const id = parseInt(idTekst, 10);
     let gevonden = -1;
     for (let i = 0; i < N; i++) { if (ID[i] === id) { gevonden = i; break; } }
     if (gevonden >= 0) {
