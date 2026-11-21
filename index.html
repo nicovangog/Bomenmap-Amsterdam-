@@ -11,7 +11,8 @@
 html, body { height: 100%; margin: 0; }
 body { display: flex; flex-direction: column; height: 100vh; height: 100dvh; font-family: sans-serif; }
 #kern { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 10px;
-        background: #f4f7f4; border-bottom: 1px solid #d5ddd5; }
+        background: #f4f7f4; border-bottom: 1px solid #d5ddd5;
+        max-height: 38vh; overflow-y: auto; -webkit-overflow-scrolling: touch; flex: 0 0 auto; }
 .kerntitel { flex-basis: 100%; font: bold 12px sans-serif; color: #1d5e27; }
 .kernbron { flex-basis: 100%; font: 11px sans-serif; color: #777; }
 .kaartje { background: white; border: 1px solid #dfe6df; border-radius: 6px;
@@ -43,11 +44,13 @@ body { display: flex; flex-direction: column; height: 100vh; height: 100dvh; fon
 .legknop { margin-top: 4px; cursor: pointer; }
 .legbron { margin-top: 4px; font-size: 11px; color: #666; }
 @media (max-width: 600px) {
-  #kern { flex-wrap: nowrap; overflow-x: auto; }
-  .kerntitel, .kernbron { display: none; }
-  .kaartje { flex: 0 0 auto; min-width: 100px; padding: 4px 8px; }
+  #kern { gap: 6px; padding: 6px 8px; max-height: 32vh; }
+  .kaartje { flex: 1 1 calc(50% - 6px); min-width: 0; padding: 4px 8px; }
   .kaartje .waarde { font-size: 16px; }
-  .info { display: none; }
+  .kernbron { font-size: 10.5px; }
+  .info { font-size: 12px; max-width: 210px; }
+  .leaflet-top.leaflet-right { top: 50px; }
+  .leaflet-top.leaflet-left { z-index: 1001; }
   .zoek { width: calc(100vw - 30px); max-width: none; }
 }
 </style>
@@ -187,11 +190,20 @@ function filterTekst() {
 
 // ---------- Kaart ----------
 const kaart = L.map('kaart', {minZoom: 10, maxZoom: 22, zoomSnap: 0.5, zoomDelta: 0.5, wheelPxPerZoomLevel: 90, zoomAnimation: false}).setView([52.3676, 4.9041], 12);
-L.tileLayer('https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0/grijs/EPSG:3857/{z}/{x}/{y}.png', {
-  maxZoom: 22,
-  maxNativeZoom: 19,
-  attribution: 'Kaartgegevens &copy; Kadaster | Boomdata: Gemeente Amsterdam (open data)'
-}).addTo(kaart);
+const KAART_BRON = 'Kaartgegevens &copy; Kadaster | Boomdata: Gemeente Amsterdam (open data)';
+function pdokKaart(naam) {
+  return L.tileLayer('https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0/' + naam + '/EPSG:3857/{z}/{x}/{y}.png',
+    {maxZoom: 22, maxNativeZoom: 19, attribution: KAART_BRON});
+}
+const kaartLagen = {
+  'Grijs': pdokKaart('grijs'),
+  'Kleur': pdokKaart('standaard'),
+  'Pastel': pdokKaart('pastel'),
+  'Luchtfoto': L.tileLayer('https://service.pdok.nl/hwh/luchtfotorgb/wmts/v1_0/Actueel_orthoHR/EPSG:3857/{z}/{x}/{y}.jpeg',
+    {maxZoom: 22, maxNativeZoom: 19, attribution: 'Luchtfoto: Beeldmateriaal Nederland | Boomdata: Gemeente Amsterdam (open data)'})
+};
+kaartLagen['Grijs'].addTo(kaart);
+L.control.layers(kaartLagen, null, {position: 'topright', collapsed: true}).addTo(kaart);
 
 // Overzicht: dichtheid (alle bomen, per vakje van 100 x 100 meter)
 const W = DATA.warmte;
