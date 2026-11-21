@@ -67,7 +67,7 @@ body { display: flex; flex-direction: column; height: 100vh; height: 100dvh; fon
 </style>
 </head>
 <body>
-<div id="tip"><span class="tiptekst">Inzoomen om bij de bomen te komen.</span><button id="kernknop" type="button">Verberg cijfers</button><span class="versie">versie 21-11-d</span></div>
+<div id="tip"><span class="tiptekst">Inzoomen om bij de bomen te komen.</span><button id="kernknop" type="button">Verberg cijfers</button><span class="versie">versie 21-11-e</span></div>
 <div id="kern"></div>
 <div id="kaart"></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -77,8 +77,8 @@ const DATA = {"n":326871,"namen":{"soortgroep":["Linde (Tilia)","Iep (Ulmus)","E
 const MOBIEL = window.matchMedia('(max-width: 800px)').matches ||
   /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ||
   (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-const ICOON_VANAF = 13;                        // vanaf dit zoomniveau kunnen boompjes getoond worden
-const MAX_ICONEN = MOBIEL ? 20000 : 80000;     // maximaal aantal boompjes in en rond het beeld
+const ICOON_VANAF = 14;                        // vanaf dit zoomniveau kunnen boompjes getoond worden
+const MAX_ICONEN = MOBIEL ? 10000 : 50000;     // maximaal aantal boompjes in en rond het beeld
 const PDOK = 'https://api.pdok.nl/bzk/locatieserver/search/v3_1';
 
 // Kleuren en volgorde volgens de legenda van maps.amsterdam.nl/bomen
@@ -201,7 +201,7 @@ function filterTekst() {
 }
 
 // ---------- Kaart ----------
-const kaart = L.map('kaart', {minZoom: 10, maxZoom: 22, zoomSnap: 0.5, zoomDelta: 0.5, wheelPxPerZoomLevel: 90, zoomAnimation: false}).setView([52.3676, 4.9041], 12);
+const kaart = L.map('kaart', {minZoom: 10, maxZoom: 22, zoomAnimation: false}).setView([52.3676, 4.9041], 12);
 const KAART_BRON = 'Kaartgegevens &copy; Kadaster | Boomdata: Gemeente Amsterdam (open data)';
 function pdokKaart(naam) {
   return L.tileLayer('https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0/' + naam + '/EPSG:3857/{z}/{x}/{y}.png',
