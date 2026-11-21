@@ -20,8 +20,12 @@ body { display: flex; flex-direction: column; height: 100vh; height: 100dvh; fon
 .kaartje .waarde { font: bold 20px sans-serif; color: #1d5e27; }
 .kaartje .label { font: 12px sans-serif; color: #555; }
 .kaartje .sub { font: 11px sans-serif; color: #888; }
-#tip { flex: 0 0 auto; padding: 5px 10px 0; font: bold 11px sans-serif; color: #1d5e27; background: #f4f7f4; }
-#tip span { float: right; font-weight: normal; color: #999; }
+#tip { flex: 0 0 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 5px 10px 0;
+       font: bold 11px sans-serif; color: #1d5e27; background: #f4f7f4; }
+#tip .tiptekst { flex: 1 1 auto; }
+#tip .versie { font-weight: normal; color: #999; }
+#tip button { font: 11px sans-serif; padding: 3px 8px; border: 1px solid #b9c7bb; border-radius: 4px;
+              background: white; color: #1d5e27; cursor: pointer; }
 #kaart { flex: 1; min-height: 250px; }
 .info { background: white; padding: 6px 10px; border-radius: 4px;
         box-shadow: 0 1px 4px rgba(0,0,0,.3); font: 13px/1.4 sans-serif; max-width: 260px; }
@@ -63,7 +67,7 @@ body { display: flex; flex-direction: column; height: 100vh; height: 100dvh; fon
 </style>
 </head>
 <body>
-<div id="tip">Inzoomen om bij de bomen te komen. <span>versie 21-11-c</span></div>
+<div id="tip"><span class="tiptekst">Inzoomen om bij de bomen te komen.</span><button id="kernknop" type="button">Verberg cijfers</button><span class="versie">versie 21-11-d</span></div>
 <div id="kern"></div>
 <div id="kaart"></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -74,7 +78,7 @@ const MOBIEL = window.matchMedia('(max-width: 800px)').matches ||
   /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ||
   (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const ICOON_VANAF = 13;                        // vanaf dit zoomniveau kunnen boompjes getoond worden
-const MAX_ICONEN = MOBIEL ? 10000 : 80000;     // maximaal aantal boompjes in en rond het beeld
+const MAX_ICONEN = MOBIEL ? 20000 : 80000;     // maximaal aantal boompjes in en rond het beeld
 const PDOK = 'https://api.pdok.nl/bzk/locatieserver/search/v3_1';
 
 // Kleuren en volgorde volgens de legenda van maps.amsterdam.nl/bomen
@@ -755,6 +759,13 @@ function bijwerken() {
           ' als dichtheid.<br>' + hint);
 }
 
+const kernknop = document.getElementById('kernknop');
+kernknop.addEventListener('click', function () {
+  const wasVerborgen = kern.style.display === 'none';
+  kern.style.display = wasVerborgen ? '' : 'none';
+  kernknop.textContent = wasVerborgen ? 'Verberg cijfers' : 'Toon cijfers';
+  kaart.invalidateSize();
+});
 kerncijfers();
 tekenLegenda();
 kaart.on('moveend', bijwerken);
