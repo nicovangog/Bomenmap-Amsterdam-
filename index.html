@@ -43,9 +43,12 @@ body { display: flex; flex-direction: column; height: 100vh; height: 100dvh; fon
 .legikoon { flex: 0 0 auto; width: 14px; height: 16px; }
 .legknop { margin-top: 4px; cursor: pointer; }
 .legbron { margin-top: 4px; font-size: 11px; color: #666; }
+@media (max-height: 500px) {
+  #kern { max-height: 30vh; }
+}
 @media (max-width: 600px) {
   #kern { gap: 6px; padding: 6px 8px; max-height: 32vh; }
-  .kaartje { flex: 1 1 calc(50% - 6px); min-width: 0; padding: 4px 8px; }
+  .kaartje { flex: 1 1 calc(50% - 6px); min-width: 0; box-sizing: border-box; padding: 4px 8px; }
   .kaartje .waarde { font-size: 16px; }
   .kernbron { font-size: 10.5px; }
   .info { font-size: 12px; max-width: 210px; }
