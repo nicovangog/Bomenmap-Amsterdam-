@@ -67,7 +67,7 @@ body { display: flex; flex-direction: column; height: 100vh; height: 100dvh; fon
 </style>
 </head>
 <body>
-<div id="tip"><span class="tiptekst">Inzoomen om bij de bomen te komen.</span><button id="kernknop" type="button">Verberg cijfers</button><span class="versie">versie 21-11-e</span></div>
+<div id="tip"><span class="tiptekst">Inzoomen om bij de bomen te komen.</span><button id="kernknop" type="button">Verberg cijfers</button><span class="versie">versie 22-11-a</span></div>
 <div id="kern"></div>
 <div id="kaart"></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -139,6 +139,35 @@ function sprite(kleur) {
   return spriteCache[kleur];
 }
 
+// Stobbe: een rondje met een stipje (plek waar een boom is weggehaald)
+let stobSpriteCache = null;
+function stobSprite() {
+  if (!stobSpriteCache) {
+    const c = document.createElement('canvas');
+    c.width = 52;
+    c.height = 60;
+    const g = c.getContext('2d');
+    g.beginPath();
+    g.arc(26, 30, 20, 0, Math.PI * 2);
+    g.fillStyle = '#F2C94C';
+    g.fill();
+    g.lineWidth = 4;
+    g.strokeStyle = '#ffffff';
+    g.stroke();
+    g.beginPath();
+    g.arc(26, 30, 14, 0, Math.PI * 2);
+    g.lineWidth = 3;
+    g.strokeStyle = '#8a6d1f';
+    g.stroke();
+    g.beginPath();
+    g.arc(26, 30, 6, 0, Math.PI * 2);
+    g.fillStyle = '#5a3b1a';
+    g.fill();
+    stobSpriteCache = {canvas: c, url: c.toDataURL()};
+  }
+  return stobSpriteCache;
+}
+
 // ---------- Data: compacte getallenreeksen ----------
 const N = DATA.n;
 const K = DATA.kolommen;
@@ -151,11 +180,14 @@ const JR = decodeer(K.jaar, Uint16Array);
 const ID = decodeer(K.id, Uint32Array);
 const namen = DATA.namen;
 const soortNamen = namen.soortgroep;
+const STOB = namen.type.indexOf('Stobbe');      // volgnummer van het type 'Stobbe'
+let aantalStobben = 0;
 
-// Tellingen voor het zoeken en de legenda
+// Tellingen voor het zoeken en de legenda (alleen bomen, stobben tellen apart)
 const soortTelling = new Array(soortNamen.length).fill(0);
 const jaarTelling = {};
 for (let i = 0; i < N; i++) {
+  if (TY[i] === STOB) { aantalStobben++; continue; }
   soortTelling[SG[i]]++;
   jaarTelling[JR[i]] = (jaarTelling[JR[i]] || 0) + 1;
 }
@@ -180,12 +212,18 @@ LEGENDA.forEach(function (l) {
 });
 
 // Het actieve filter
-let selectie = {soort: null, jaar: null, groep: null};
+let selectie = {soort: null, jaar: null, groep: null, stobben: false};
 let aantalFilter = N;
-function filterActief() {
+function soortJaarFilter() {
   return selectie.soort !== null || selectie.jaar !== null || selectie.groep !== null;
 }
+function filterActief() {
+  return soortJaarFilter() || selectie.stobben;
+}
+// Stobben zijn geen bomen: ze doen mee zonder filter of in de stand 'alleen stobben'
 function past(i) {
+  if (TY[i] === STOB) return selectie.stobben || !soortJaarFilter();
+  if (selectie.stobben) return false;
   return (selectie.soort === null || SG[i] === selectie.soort) &&
          (selectie.groep === null || GROEPVAN[SG[i]] === selectie.groep) &&
          (selectie.jaar === null || JR[i] === selectie.jaar);
@@ -193,6 +231,7 @@ function past(i) {
 function kleurVan(i) { return KLEURVAN[SG[i]]; }
 function filterTekst() {
   const delen = [];
+  if (selectie.stobben) delen.push('alleen stobben');
   if (selectie.soort !== null) delen.push(soortNamen[selectie.soort]);
   if (selectie.groep === 1) delen.push('onbekende soorten');
   if (selectie.groep === 2) delen.push('overige soorten');
@@ -272,6 +311,7 @@ const BomenLaag = L.Layer.extend({
     const west = Math.round(grens.getWest() * 1e6), oost = Math.round(grens.getEast() * 1e6);
 
     const lijst = [];
+    const stobLijst = [];
     for (let i = 0; i < N; i++) {
       const la = LAT[i];
       if (la < zuid || la > noord) continue;
@@ -279,9 +319,18 @@ const BomenLaag = L.Layer.extend({
       if (lo < west || lo > oost) continue;
       if (!past(i)) continue;
       const lp = map.latLngToLayerPoint([la / 1e6, lo / 1e6]);
-      g.drawImage(sprite(kleurVan(i)).canvas, lp.x - tl.x - breedte / 2, lp.y - tl.y - hoogte, breedte, hoogte);
-      lijst.push(i, lp.x, lp.y);
+      if (TY[i] === STOB) stobLijst.push(i, lp.x, lp.y);
+      else lijst.push(i, lp.x, lp.y);
     }
+    const stobCanvas = stobSprite().canvas;
+    const stobH = hoogte * 0.8, stobB = stobH * 52 / 60;
+    for (let k = 0; k < stobLijst.length; k += 3) {
+      g.drawImage(stobCanvas, stobLijst[k + 1] - tl.x - stobB / 2, stobLijst[k + 2] - tl.y - stobH / 2, stobB, stobH);
+    }
+    for (let k = 0; k < lijst.length; k += 3) {
+      g.drawImage(sprite(kleurVan(lijst[k])).canvas, lijst[k + 1] - tl.x - breedte / 2, lijst[k + 2] - tl.y - hoogte, breedte, hoogte);
+    }
+    for (let k = 0; k < stobLijst.length; k++) lijst.push(stobLijst[k]);
     this._zichtbaar = lijst;
     this._hoogte = hoogte;
   }
@@ -292,6 +341,15 @@ const zoekLaag = L.layerGroup().addTo(kaart);
 
 function popupTekst(i) {
   const jaar = JR[i] > 0 ? JR[i] : 'onbekend';
+  if (TY[i] === STOB) {
+    return '<b>Stobbe</b> (plek waar een boom is weggehaald)<br>' +
+      'Soort boom: ' + esc(soortNamen[SG[i]]) + '<br>' +
+      'Latijnse naam: ' + esc(namen.soort[SO[i]]) + '<br>' +
+      'Jaar: ' + jaar + '<br>' +
+      'Boom-ID: ' + ID[i] + '<br>' +
+      'Breedtegraad: ' + (LAT[i] / 1e6).toFixed(6) + '<br>' +
+      'Lengtegraad: ' + (LON[i] / 1e6).toFixed(6);
+  }
   return '<b>' + esc(soortNamen[SG[i]]) + '</b><br>' +
     'Soort: ' + esc(namen.soort[SO[i]]) + '<br>' +
     'Type: ' + esc(namen.type[TY[i]]) + '<br>' +
@@ -311,12 +369,12 @@ kaart.on('click', function (e) {
   let bestAfstand = drempel * drempel;
   for (let k = 0; k < lijst.length; k += 3) {
     const dx = e.layerPoint.x - lijst[k + 1];
-    const dy = e.layerPoint.y - (lijst[k + 2] - h * 0.55);
+    const dy = e.layerPoint.y - (lijst[k + 2] - (TY[lijst[k]] === STOB ? 0 : h * 0.55));
     const d = dx * dx + dy * dy;
     if (d < bestAfstand) { bestAfstand = d; beste = lijst[k]; }
   }
   if (beste >= 0) {
-    L.popup({offset: L.point(0, -Math.round(h))})
+    L.popup({offset: L.point(0, TY[beste] === STOB ? -Math.round(h * 0.4) : -Math.round(h))})
       .setLatLng([LAT[beste] / 1e6, LON[beste] / 1e6])
       .setContent(popupTekst(beste))
       .openOn(kaart);
@@ -337,9 +395,13 @@ function kerncijfers() {
   const perSoort = new Uint32Array(soortNamen.length);
   const perJaar = new Uint32Array(65536);
   const jaren = new Uint16Array(N);
-  let nJaren = 0, totaal = 0, onbekend = 0;
+  let nJaren = 0, totaal = 0, onbekend = 0, stobben = 0;
+  const stobModus = selectie.stobben;
   for (let i = 0; i < N; i++) {
     if (!past(i)) continue;
+    const isStob = TY[i] === STOB;
+    if (isStob) stobben++;
+    if (isStob !== stobModus) continue;
     totaal++;
     perSoort[SG[i]]++;
     if (JR[i] > 0) { perJaar[JR[i]]++; jaren[nJaren++] = JR[i]; }
@@ -362,18 +424,20 @@ function kerncijfers() {
   const mediaan = nJaren ? gesorteerd[Math.floor(nJaren / 2)] : null;
   const percOnbekend = totaal ? (onbekend / totaal * 100).toFixed(1).replace('.', ',') : '0';
 
-  const titel = filterActief() ? 'Met filter: ' + esc(filterTekst()) : 'Alle bomen in de dataset';
+  const titel = filterActief() ? 'Met filter: ' + esc(filterTekst()) : 'Alle bomen en stobben in de dataset';
+  const eenheid = stobModus ? ' stobben' : ' bomen';
 
   kern.innerHTML =
     '<div class="kerntitel">' + titel + '</div>' +
-    kaartje(nl(totaal), 'Bomen') +
-    kaartje(nl(aantalSoorten), 'Soortgroepen') +
-    kaartje(topSoort ? esc(topSoort) : '-', 'Meest voorkomend', topSoort ? nl(topAantal) + ' bomen' : '') +
-    kaartje(mediaan !== null ? mediaan : '-', 'Mediaan aanlegjaar', 'van bomen met bekend jaar') +
-    kaartje(piekJaar !== null ? piekJaar : '-', 'Piekjaar aanleg', piekJaar !== null ? nl(piekAantal) + ' bomen' : '') +
+    (stobModus ? '' : kaartje(nl(totaal), 'Bomen', 'zonder stobben')) +
+    ((!filterActief() || stobModus) ? kaartje(nl(stobben), 'Stobben', 'plekken waar een boom is weggehaald') : '') +
+    kaartje(nl(aantalSoorten), 'Soortgroepen', stobModus ? 'van de weggehaalde bomen' : '') +
+    kaartje(topSoort ? esc(topSoort) : '-', 'Meest voorkomend', topSoort ? nl(topAantal) + eenheid : '') +
+    kaartje(mediaan !== null ? mediaan : '-', 'Mediaan aanlegjaar', stobModus ? 'van stobben met bekend jaar' : 'van bomen met bekend jaar') +
+    kaartje(piekJaar !== null ? piekJaar : '-', 'Piekjaar aanleg', piekJaar !== null ? nl(piekAantal) + eenheid : '') +
     kaartje(percOnbekend + '%', 'Aanlegjaar onbekend') +
     '<div class="kernbron">Bron: Gemeente Amsterdam (open data), opgehaald op 16 november 2026. ' +
-    '21 bomen uit de bron zijn niet meegenomen. Onbekend betekent: geen aanlegjaar geregistreerd. ' +
+    '21 bomen uit de bron zijn niet meegenomen. Een stobbe is een plek waar een boom is weggehaald (type Stobbe in de bron); ze staan niet bij de bomen geteld. Onbekend betekent: geen aanlegjaar geregistreerd. ' +
     'Kleuren volgens de legenda van maps.amsterdam.nl/bomen. De gemeente meldt bij haar bomenkaart dat de ' +
     'weergave niet real-time is: bomen kunnen inmiddels zijn gekapt of omgewaaid.</div>';
   kaart.invalidateSize();
@@ -399,12 +463,12 @@ legenda.onAdd = function () {
 legenda.addTo(kaart);
 let legendaOpen = !MOBIEL;
 
-function legendaRij(kleur, tekst, actief, klik) {
+function legendaRij(kleur, tekst, actief, klik, ikoonUrl) {
   const rij = document.createElement('div');
   rij.className = 'legrij' + (actief ? ' actief' : '');
   const ikoon = document.createElement('img');
   ikoon.className = 'legikoon';
-  ikoon.src = sprite(kleur).url;
+  ikoon.src = ikoonUrl || sprite(kleur).url;
   ikoon.alt = '';
   const label = document.createElement('span');
   label.textContent = tekst;
@@ -439,10 +503,16 @@ function tekenLegenda() {
     function () { wijzigFilter({groep: selectie.groep === 2 ? null : 2, soort: null}); }
   ));
 
+  div.appendChild(legendaRij(
+    null, 'Stobben (' + nl(aantalStobben) + ')', selectie.stobben,
+    function () { wijzigFilter({stobben: !selectie.stobben, soort: null, jaar: null, groep: null}); },
+    stobSprite().url
+  ));
+
   if (filterActief()) {
     const knop = document.createElement('button');
     knop.className = 'legknop';
-    knop.textContent = 'Toon alle bomen';
+    knop.textContent = 'Toon alles';
     knop.addEventListener('click', function () { wijzigFilter({soort: null, jaar: null, groep: null}); });
     div.appendChild(knop);
   }
@@ -458,7 +528,7 @@ const zoekBox = L.control({position: 'topleft'});
 zoekBox.onAdd = function () {
   const div = L.DomUtil.create('div', 'zoek');
   div.innerHTML = '<input id="zoekveld" type="search" ' +
-    'placeholder="Adres, boomsoort, jaar of boom-ID" autocomplete="off">' +
+    'placeholder="Adres, boomsoort, stobben, jaar of boom-ID" autocomplete="off">' +
     '<div id="filterchip"></div><div id="zoeklijst"></div>';
   L.DomEvent.disableClickPropagation(div);
   L.DomEvent.disableScrollPropagation(div);
@@ -506,7 +576,7 @@ function toonChip() {
   filterchip.innerHTML = '';
   if (!filterActief()) return;
   const tekst = document.createElement('span');
-  tekst.textContent = 'Filter: ' + filterTekst() + ' (' + nl(aantalFilter) + ' bomen)';
+  tekst.textContent = 'Filter: ' + filterTekst() + ' (' + nl(aantalFilter) + (selectie.stobben ? ' stobben)' : ' bomen)');
   const knop = document.createElement('button');
   knop.textContent = 'Wis filter';
   knop.addEventListener('click', function () { wijzigFilter({soort: null, jaar: null, groep: null}); });
@@ -515,6 +585,7 @@ function toonChip() {
 }
 
 function wijzigFilter(deel) {
+  if (deel.stobben === undefined) deel.stobben = false;
   Object.assign(selectie, deel);
   zoeklijst.innerHTML = '';
   huidigeActies = [];
@@ -548,9 +619,15 @@ function zoekLokaal(tekst) {
     let gevonden = -1;
     for (let i = 0; i < N; i++) { if (ID[i] === id) { gevonden = i; break; } }
     if (gevonden >= 0) {
-      items.push({groep: 'Boom-ID', tekst: 'Boom ' + id + ' (' + soortNamen[SG[gevonden]] + ')',
+      items.push({groep: 'Boom-ID', tekst: (TY[gevonden] === STOB ? 'Stobbe ' : 'Boom ') + id + ' (' + soortNamen[SG[gevonden]] + ')',
                   actie: function () { gaNaarBoom(gevonden); }});
     }
+  }
+
+  if (klein.length >= 3 && ('stobben'.indexOf(klein) === 0 || klein.indexOf('stobb') === 0)) {
+    items.push({groep: 'Type',
+                tekst: 'Stobben (' + nl(aantalStobben) + ')',
+                actie: function () { wijzigFilter({stobben: true, soort: null, jaar: null, groep: null}); }});
   }
 
   if (/^\d{4}$/.test(tekst)) {
@@ -580,7 +657,7 @@ function gaNaarBoom(i) {
   huidigeActies = [];
   zoekLaag.clearLayers();
   if (filterActief()) {
-    selectie = {soort: null, jaar: null, groep: null};
+    selectie = {soort: null, jaar: null, groep: null, stobben: false};
     bouwWarmte();
     toonChip();
     kerncijfers();
@@ -590,7 +667,7 @@ function gaNaarBoom(i) {
   kaart.setView([lat, lon], 19);
   L.circleMarker([lat, lon], {radius: 22, color: '#c0392b', weight: 3, fill: false}).addTo(zoekLaag);
   L.marker([lat, lon], {
-    icon: L.icon({iconUrl: sprite(kleurVan(i)).url, iconSize: [26, 30], iconAnchor: [13, 29], popupAnchor: [0, -26]})
+    icon: L.icon({iconUrl: (TY[i] === STOB ? stobSprite() : sprite(kleurVan(i))).url, iconSize: [26, 30], iconAnchor: [13, TY[i] === STOB ? 15 : 29], popupAnchor: [0, TY[i] === STOB ? -14 : -26]})
   }).bindPopup(popupTekst(i)).addTo(zoekLaag).openPopup();
 }
 
@@ -723,7 +800,7 @@ function bijwerken() {
   const zoom = kaart.getZoom();
   const totaal = nl(aantalFilter);
 
-  let gevonden = 0;
+  let gevonden = 0, gevondenStob = 0;
   if (zoom >= ICOON_VANAF) {
     const grens = kaart.getBounds().pad(0.25);
     const zuid = Math.round(grens.getSouth() * 1e6), noord = Math.round(grens.getNorth() * 1e6);
@@ -733,7 +810,7 @@ function bijwerken() {
       if (la < zuid || la > noord) continue;
       const lo = LON[i];
       if (lo < west || lo > oost) continue;
-      if (past(i)) gevonden++;
+      if (past(i)) { gevonden++; if (TY[i] === STOB) gevondenStob++; }
     }
   }
 
@@ -742,8 +819,10 @@ function bijwerken() {
     if (!kaart.hasLayer(boomLaag)) boomLaag.addTo(kaart);
     boomLaag.herteken();
     document.getElementById('tip').style.display = 'none';
-    melding('In en rond dit beeld: ' + nl(gevonden) + ' bomen' + (filterActief() ? ' (met filter)' : '') +
-            '.<br>Klik op een boom voor informatie.');
+    const nBomen = gevonden - gevondenStob;
+    melding('In en rond dit beeld: ' + (selectie.stobben ? nl(gevondenStob) + ' stobben' :
+            nl(nBomen) + ' bomen' + (gevondenStob ? ' en ' + nl(gevondenStob) + ' stobben' : '')) +
+            (filterActief() ? ' (met filter)' : '') + '.<br>Klik op een boom of stobbe voor informatie.');
     return;
   }
 
@@ -755,7 +834,7 @@ function bijwerken() {
     ? 'Zoom in (vanaf niveau ' + ICOON_VANAF + ') voor losse bomen. Nu: niveau ' + zoom + '.'
     : 'Hier staan te veel bomen om ze allemaal te tonen (' + nl(gevonden) +
       '). Zoom verder in of kies een boomsoort in de legenda.';
-  melding((filterActief() ? totaal + ' bomen met dit filter' : 'Alle ' + totaal + ' bomen') +
+  melding((filterActief() ? totaal + (selectie.stobben ? ' stobben' : ' bomen') + ' met dit filter' : 'Alle ' + totaal + ' bomen en stobben') +
           ' als dichtheid.<br>' + hint);
 }
 
