@@ -70,7 +70,7 @@ body { display: flex; flex-direction: column; height: 100vh; height: 100dvh; fon
 </style>
 </head>
 <body>
-<div id="tip"><span class="tiptekst">Inzoomen om bij de bomen te komen.</span><button id="kernknop" type="button">Verberg cijfers</button><span class="versie">versie 22-11-b</span><button id="alleBomen" type="button">TOON ALLE BOMEN</button></div>
+<div id="tip"><span class="tiptekst">Inzoomen om bij de bomen te komen.</span><button id="kernknop" type="button">Verberg cijfers</button><span class="versie">versie 22-11-c</span><button id="alleBomen" type="button">TOON ALLE BOMEN</button></div>
 <div id="kern"></div>
 <div id="kaart"></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -221,6 +221,7 @@ LEGENDA.forEach(function (l) {
 });
 
 // Het actieve filter
+let heatVast = false;                           // knop 'Toon heatmap': heatlaag ook als je bent ingezoomd
 let alleBomen = false;                          // knop 'Toon alle bomen': stippen voor alle bomen
 let selectie = {soort: null, jaar: null, groep: null, stobben: false};
 let aantalFilter = N;
@@ -850,7 +851,7 @@ function bijwerken() {
     }
   }
 
-  if (zoom >= ICOON_VANAF && gevonden <= MAX_ICONEN) {
+  if (!heatVast && zoom >= ICOON_VANAF && gevonden <= MAX_ICONEN) {
     if (kaart.hasLayer(warmteLaag)) kaart.removeLayer(warmteLaag);
     if (!kaart.hasLayer(boomLaag)) boomLaag.addTo(kaart);
     boomLaag.punten = false;
@@ -863,7 +864,7 @@ function bijwerken() {
     return;
   }
 
-  if (alleBomen) {
+  if (alleBomen && !heatVast) {
     if (kaart.hasLayer(warmteLaag)) kaart.removeLayer(warmteLaag);
     if (!kaart.hasLayer(boomLaag)) boomLaag.addTo(kaart);
     boomLaag.punten = true;
@@ -875,10 +876,12 @@ function bijwerken() {
     return;
   }
   if (kaart.hasLayer(boomLaag)) kaart.removeLayer(boomLaag);
-  document.querySelector('#tip .tiptekst').style.display = '';
+  document.querySelector('#tip .tiptekst').style.display = heatVast ? 'none' : '';
   if (!kaart.hasLayer(warmteLaag)) warmteLaag.addTo(kaart);
   warmteLaag.setLatLngs(warmteData);
-  const hint = zoom < ICOON_VANAF
+  const hint = heatVast
+    ? 'De heatmap staat aan. Kies TOON ALLE BOMEN om de bomen te zien.'
+    : zoom < ICOON_VANAF
     ? 'Zoom in (vanaf niveau ' + ICOON_VANAF + ') voor losse bomen. Nu: niveau ' + zoom + '.'
     : 'Hier staan te veel bomen om ze allemaal te tonen (' + nl(gevonden) +
       '). Zoom verder in of kies een boomsoort in de legenda.';
@@ -895,7 +898,9 @@ kernknop.addEventListener('click', function () {
 });
 const alleKnop = document.getElementById('alleBomen');
 alleKnop.addEventListener('click', function () {
-  alleBomen = !alleBomen;
+  // Eerst alle bomen, bij de volgende tik de heatmap (ook als je bent ingezoomd), dan weer alle bomen
+  if (alleBomen) { alleBomen = false; heatVast = true; }
+  else { alleBomen = true; heatVast = false; }
   alleKnop.textContent = alleBomen ? 'TOON HEATMAP' : 'TOON ALLE BOMEN';
   alleKnop.className = alleBomen ? 'aan' : '';
   bijwerken();
