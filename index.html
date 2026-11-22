@@ -24,6 +24,9 @@ body { display: flex; flex-direction: column; height: 100vh; height: 100dvh; fon
        font: bold 11px sans-serif; color: #1d5e27; background: #f4f7f4; }
 #tip .tiptekst { flex: 1 1 auto; }
 #tip .versie { font-weight: normal; color: #999; }
+#tip #alleBomen { flex: 1 1 100%; font: bold 14px sans-serif; letter-spacing: 0.5px; padding: 9px 10px; margin-bottom: 6px;
+                 border: 0; border-radius: 6px; background: #1d5e27; color: white; cursor: pointer; }
+#tip #alleBomen.aan { background: #8a6d1f; }
 #tip button { font: 11px sans-serif; padding: 3px 8px; border: 1px solid #b9c7bb; border-radius: 4px;
               background: white; color: #1d5e27; cursor: pointer; }
 #kaart { flex: 1; min-height: 250px; }
@@ -67,7 +70,7 @@ body { display: flex; flex-direction: column; height: 100vh; height: 100dvh; fon
 </style>
 </head>
 <body>
-<div id="tip"><span class="tiptekst">Inzoomen om bij de bomen te komen.</span><button id="kernknop" type="button">Verberg cijfers</button><span class="versie">versie 22-11-a</span></div>
+<div id="tip"><span class="tiptekst">Inzoomen om bij de bomen te komen.</span><button id="kernknop" type="button">Verberg cijfers</button><span class="versie">versie 22-11-b</span><button id="alleBomen" type="button">TOON ALLE BOMEN</button></div>
 <div id="kern"></div>
 <div id="kaart"></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -178,6 +181,12 @@ const SO = decodeer(K.soort, Uint16Array);
 const TY = decodeer(K.type, Uint8Array);
 const JR = decodeer(K.jaar, Uint16Array);
 const ID = decodeer(K.id, Uint32Array);
+// Voorberekend voor het snel tekenen van stippen (Web Mercator, tussen 0 en 1)
+const MX = new Float64Array(DATA.n), MY = new Float64Array(DATA.n);
+for (let i = 0; i < DATA.n; i++) {
+  MX[i] = (LON[i] / 1e6 + 180) / 360;
+  MY[i] = 0.5 - Math.log(Math.tan(Math.PI / 4 + (LAT[i] / 1e6) * Math.PI / 360)) / (2 * Math.PI);
+}
 const namen = DATA.namen;
 const soortNamen = namen.soortgroep;
 const STOB = namen.type.indexOf('Stobbe');      // volgnummer van het type 'Stobbe'
@@ -212,6 +221,7 @@ LEGENDA.forEach(function (l) {
 });
 
 // Het actieve filter
+let alleBomen = false;                          // knop 'Toon alle bomen': stippen voor alle bomen
 let selectie = {soort: null, jaar: null, groep: null, stobben: false};
 let aantalFilter = N;
 function soortJaarFilter() {
@@ -310,6 +320,32 @@ const BomenLaag = L.Layer.extend({
     const zuid = Math.round(grens.getSouth() * 1e6), noord = Math.round(grens.getNorth() * 1e6);
     const west = Math.round(grens.getWest() * 1e6), oost = Math.round(grens.getEast() * 1e6);
 
+    if (this.punten) {
+      const ws = 256 * Math.pow(2, zoom);
+      const po = map.getPixelOrigin();
+      const ox = po.x + tl.x, oy = po.y + tl.y;
+      const s = Math.max(1.5, Math.min(5, (zoom - 10) * 0.8));
+      const emmers = {};
+      for (let i = 0; i < N; i++) {
+        const la = LAT[i];
+        if (la < zuid || la > noord) continue;
+        const lo = LON[i];
+        if (lo < west || lo > oost) continue;
+        if (!past(i)) continue;
+        const kl = TY[i] === STOB ? '#F2C94C' : KLEURVAN[SG[i]];
+        let e = emmers[kl];
+        if (!e) e = emmers[kl] = [];
+        e.push(MX[i] * ws - ox, MY[i] * ws - oy);
+      }
+      for (const kl in emmers) {
+        const e = emmers[kl];
+        g.fillStyle = kl;
+        for (let k = 0; k < e.length; k += 2) g.fillRect(e[k] - s / 2, e[k + 1] - s / 2, s, s);
+      }
+      this._zichtbaar = [];
+      this._hoogte = hoogte;
+      return;
+    }
     const lijst = [];
     const stobLijst = [];
     for (let i = 0; i < N; i++) {
@@ -817,8 +853,9 @@ function bijwerken() {
   if (zoom >= ICOON_VANAF && gevonden <= MAX_ICONEN) {
     if (kaart.hasLayer(warmteLaag)) kaart.removeLayer(warmteLaag);
     if (!kaart.hasLayer(boomLaag)) boomLaag.addTo(kaart);
+    boomLaag.punten = false;
     boomLaag.herteken();
-    document.getElementById('tip').style.display = 'none';
+    document.querySelector('#tip .tiptekst').style.display = 'none';
     const nBomen = gevonden - gevondenStob;
     melding('In en rond dit beeld: ' + (selectie.stobben ? nl(gevondenStob) + ' stobben' :
             nl(nBomen) + ' bomen' + (gevondenStob ? ' en ' + nl(gevondenStob) + ' stobben' : '')) +
@@ -826,8 +863,19 @@ function bijwerken() {
     return;
   }
 
+  if (alleBomen) {
+    if (kaart.hasLayer(warmteLaag)) kaart.removeLayer(warmteLaag);
+    if (!kaart.hasLayer(boomLaag)) boomLaag.addTo(kaart);
+    boomLaag.punten = true;
+    boomLaag.herteken();
+    document.querySelector('#tip .tiptekst').style.display = 'none';
+    melding((filterActief() ? totaal + (selectie.stobben ? ' stobben' : ' bomen') + ' met dit filter'
+                            : 'Alle ' + totaal + ' bomen en stobben') +
+            ' als stippen.<br>Zoom in voor losse boompjes en meer informatie.');
+    return;
+  }
   if (kaart.hasLayer(boomLaag)) kaart.removeLayer(boomLaag);
-  document.getElementById('tip').style.display = '';
+  document.querySelector('#tip .tiptekst').style.display = '';
   if (!kaart.hasLayer(warmteLaag)) warmteLaag.addTo(kaart);
   warmteLaag.setLatLngs(warmteData);
   const hint = zoom < ICOON_VANAF
@@ -844,6 +892,13 @@ kernknop.addEventListener('click', function () {
   kern.style.display = wasVerborgen ? '' : 'none';
   kernknop.textContent = wasVerborgen ? 'Verberg cijfers' : 'Toon cijfers';
   kaart.invalidateSize();
+});
+const alleKnop = document.getElementById('alleBomen');
+alleKnop.addEventListener('click', function () {
+  alleBomen = !alleBomen;
+  alleKnop.textContent = alleBomen ? 'TOON HEATMAP' : 'TOON ALLE BOMEN';
+  alleKnop.className = alleBomen ? 'aan' : '';
+  bijwerken();
 });
 kerncijfers();
 tekenLegenda();
