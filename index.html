@@ -70,7 +70,7 @@ body { display: flex; flex-direction: column; height: 100vh; height: 100dvh; fon
 </style>
 </head>
 <body>
-<div id="tip"><span class="tiptekst">Inzoomen om bij de bomen te komen.</span><button id="kernknop" type="button">Verberg cijfers</button><span class="versie">versie 22-11-c</span><button id="alleBomen" type="button">TOON ALLE BOMEN</button></div>
+<div id="tip"><span class="tiptekst">Inzoomen om bij de bomen te komen.</span><button id="kernknop" type="button">Verberg cijfers</button><span class="versie">versie 22-11-d</span><button id="alleBomen" type="button">TOON ALLE BOMEN</button></div>
 <div id="kern"></div>
 <div id="kaart"></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -114,6 +114,7 @@ function decodeer(tekst, Type) {
   return new Type(buf);
 }
 function nl(n) { return n.toLocaleString('nl-NL'); }
+function telTekst(n, een, meer) { return nl(n) + ' ' + (n === 1 ? een : meer); }
 function esc(t) {
   return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
@@ -745,17 +746,23 @@ async function kiesPlek(doc) {
     // Tel de bomen binnen 100 meter (met het huidige filter)
     const dLat = 100 / 111320;
     const dLon = 100 / (111320 * Math.cos(lat * Math.PI / 180));
-    let aantal = 0;
+    let aantalBomen = 0, aantalStobben100 = 0;
     for (let i = 0; i < N; i++) {
       const y = (LAT[i] / 1e6 - lat) / dLat;
       const x = (LON[i] / 1e6 - lon) / dLon;
-      if (x * x + y * y <= 1 && past(i)) aantal++;
+      if (x * x + y * y <= 1 && past(i)) {
+        if (TY[i] === STOB) aantalStobben100++;
+        else aantalBomen++;
+      }
     }
+    const delen100 = [];
+    if (!selectie.stobben) delen100.push(telTekst(aantalBomen, 'boom', 'bomen'));
+    if (aantalStobben100 > 0 || selectie.stobben) delen100.push(telTekst(aantalStobben100, 'stobbe', 'stobben'));
 
     zoekLaag.clearLayers();
     L.circle([lat, lon], {radius: 100, color: '#c0392b', weight: 2, fillOpacity: 0.05}).addTo(zoekLaag);
     L.marker([lat, lon])
-      .bindPopup('<b>' + esc(doc.weergavenaam) + '</b><br>' + aantal + ' bomen binnen 100 meter' +
+      .bindPopup('<b>' + esc(doc.weergavenaam) + '</b><br>' + delen100.join(' en ') + ' binnen 100 meter' +
                  (filterActief() ? ' (met filter)' : ''))
       .addTo(zoekLaag)
       .openPopup();
